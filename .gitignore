@@ -1,0 +1,10 @@
+# ----- Always ignore -----
+.claude/.context-cache/
+.claude/settings.local.json
+__pycache__/
+
+# ----- Real projects (uncomment) -----
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+PLAN.md
