@@ -2,6 +2,8 @@
 .claude/.context-cache/
 .claude/settings.local.json
 __pycache__/
+state/
+.env
 
 # ----- Real projects (uncomment) -----
 .claude/

@@ -118,6 +118,7 @@ def main() -> None:
     user_agent = build_user_agent()
     count = 0
     start = last_progress = time.monotonic()
+    last_progress_count = 0
     last_event_id = None
     retry_delay = 1
     try:
@@ -136,8 +137,10 @@ def main() -> None:
                     count += 1
                     now = time.monotonic()
                     if now - last_progress >= PROGRESS_INTERVAL_SECONDS:
-                        log.info("Read %d events (%.1f events/s)", count, count / (now - start))
-                        last_progress = now
+                        interval = count - last_progress_count
+                        log.info("Read %d events (+%d in last %.0f s, %.1f events/s)",
+                                 count, interval, now - last_progress, interval / (now - last_progress))
+                        last_progress, last_progress_count = now, count
                 log.info("Connection closed by server")
             except urllib.error.HTTPError as error:
                 if 400 <= error.code < 500 and error.code != 429:

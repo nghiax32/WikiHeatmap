@@ -1,0 +1,119 @@
+services:
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: wikiheatmap-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # One node is both broker and controller (KRaft, no ZooKeeper).
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # Base64 UUID, fixed so the volume stays valid across restarts.
+      CLUSTER_ID: ovQskuB-S7CHWrUs3FziXQ
+      # PLAINTEXT for other containers (kafka:19092), PLAINTEXT_HOST for the host (localhost:9092).
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Single broker: internal topics cannot have more than one replica.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created explicitly (3 partitions, see CLAUDE.md), not on first produce.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 72
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # One-shot: creates topics, then exits. Re-run by hand: docker compose run --rm kafka-init
+  kafka-init:
+    image: apache/kafka:4.0.0
+    container_name: wikiheatmap-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./scripts/create_topics.sh:/create_topics.sh:ro
+    entrypoint: ["/bin/sh", "/create_topics.sh"]
+    restart: "no"
+
+  # S3-compatible object storage (master, volume, filer and S3 gateway in one process).
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.50
+    container_name: wikiheatmap-seaweedfs
+    command: server -dir=/data -ip.bind=0.0.0.0 -s3 -master.volumeSizeLimitMB=1024
+    ports:
+      - "8333:8333"  # S3 API
+    environment:
+      # Local development credentials; override in .env.
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-wikiheatmap}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-wikiheatmap-secret}
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: creates buckets, then exits. Re-run by hand: docker compose run --rm seaweedfs-init
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.50
+    container_name: wikiheatmap-seaweedfs-init
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    volumes:
+      - ./scripts/create_buckets.sh:/create_buckets.sh:ro
+    entrypoint: ["/bin/sh", "/create_buckets.sh"]
+    restart: "no"
+
+  # EventStreams -> Kafka. Set WIKI_CONTACT (email or URL) in .env.
+  producer:
+    build: .
+    image: wikiheatmap-app
+    container_name: wikiheatmap-producer
+    command: ["python", "scripts/produce_recentchange.py"]
+    environment:
+      WIKI_CONTACT: ${WIKI_CONTACT:-}
+      KAFKA_BOOTSTRAP: kafka:19092
+      STATE_FILE: /state/last_event_id
+    volumes:
+      - producer-state:/state
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Kafka -> hourly JSONL.gz on SeaweedFS. Temporary until the Spark raw query (Step 7).
+  archiver:
+    build: .
+    image: wikiheatmap-app
+    container_name: wikiheatmap-archiver
+    command: ["python", "scripts/archive_raw.py"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:19092
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-wikiheatmap}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-wikiheatmap-secret}
+      FLUSH_INTERVAL_SECONDS: ${ARCHIVE_FLUSH_INTERVAL_SECONDS:-300}
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      seaweedfs-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+  seaweedfs-data:
+  producer-state:

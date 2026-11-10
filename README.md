@@ -41,7 +41,7 @@ flowchart TD
     C --> D[Streaming query 1<br/>aggregation, spike and<br/>edit-war detection]
     C --> E[Streaming query 2<br/>raw events to Parquet]
     D --> F[(PostgreSQL<br/>real-time table)]
-    E --> G[(MinIO archive)]
+    E --> G[(SeaweedFS archive)]
     G --> H[Airflow daily<br/>dbt]
     H --> I[(PostgreSQL<br/>star schema + baselines)]
     I -. baseline .-> D
@@ -59,7 +59,7 @@ flowchart TD
 
 1. Continuously ingest Wikimedia EventStreams into Kafka without losing events when the producer restarts.
 2. Compute near real-time metrics based on **event time**.
-3. Archive raw events as Parquet on MinIO (S3-compatible object storage) for replay and historical analysis.
+3. Archive raw events as Parquet on SeaweedFS (S3-compatible object storage) for replay and historical analysis.
 4. Build a daily star schema with dbt, including data quality tests and per-page baselines.
 5. Provide a dashboard that combines real-time and historical views.
 
@@ -82,13 +82,13 @@ flowchart TD
 
 ## Tech stack
 
-Python · Apache Kafka · Spark Structured Streaming (PySpark) · dbt · PostgreSQL · MinIO · Airflow · Metabase · Docker Compose
+Python · Apache Kafka · Spark Structured Streaming (PySpark) · dbt · PostgreSQL · SeaweedFS · Airflow · Metabase · Docker Compose
 
 The project uses only local services, so the whole stack starts with `docker compose up` at no cost. On a cloud platform, each storage and dashboard component can be replaced by a managed service:
 
 | Role | This project (local) | Cloud alternative |
 |---|---|---|
-| Raw event archive | MinIO (S3-compatible) | Google Cloud Storage, Amazon S3 |
+| Raw event archive | SeaweedFS (S3-compatible) | Google Cloud Storage, Amazon S3 |
 | Data warehouse and real-time table | PostgreSQL | BigQuery, Snowflake, Amazon Redshift |
 | Dashboard | Metabase | Looker Studio |
 
@@ -135,7 +135,7 @@ flowchart TD
     C --> D[Streaming query 1<br/>aggregate, phát hiện<br/>spike và edit war]
     C --> E[Streaming query 2<br/>raw event sang Parquet]
     D --> F[(PostgreSQL<br/>bảng real-time)]
-    E --> G[(MinIO archive)]
+    E --> G[(SeaweedFS archive)]
     G --> H[Airflow hằng ngày<br/>dbt]
     H --> I[(PostgreSQL<br/>star schema + baseline)]
     I -. baseline .-> D
@@ -153,7 +153,7 @@ flowchart TD
 
 1. Ingest liên tục Wikimedia EventStreams vào Kafka, không mất event khi producer restart.
 2. Tính metric gần real-time theo **event time**.
-3. Lưu raw event thành Parquet trên MinIO (object storage tương thích S3) để replay và phân tích lịch sử.
+3. Lưu raw event thành Parquet trên SeaweedFS (object storage tương thích S3) để replay và phân tích lịch sử.
 4. Hằng ngày build star schema bằng dbt, có data quality test và baseline cho từng trang.
 5. Dashboard kết hợp góc nhìn real-time và lịch sử.
 
@@ -176,12 +176,12 @@ flowchart TD
 
 ## Công nghệ
 
-Python · Apache Kafka · Spark Structured Streaming (PySpark) · dbt · PostgreSQL · MinIO · Airflow · Metabase · Docker Compose
+Python · Apache Kafka · Spark Structured Streaming (PySpark) · dbt · PostgreSQL · SeaweedFS · Airflow · Metabase · Docker Compose
 
 Dự án chỉ dùng các service chạy local, nên toàn bộ hệ thống khởi động bằng `docker compose up` mà không tốn chi phí. Nếu chạy trên cloud, có thể thay các thành phần lưu trữ và dashboard bằng managed service:
 
 | Vai trò | Dự án này (local) | Thay thế trên cloud |
 |---|---|---|
-| Lưu trữ raw event | MinIO (tương thích S3) | Google Cloud Storage, Amazon S3 |
+| Lưu trữ raw event | SeaweedFS (tương thích S3) | Google Cloud Storage, Amazon S3 |
 | Data warehouse và bảng real-time | PostgreSQL | BigQuery, Snowflake, Amazon Redshift |
 | Dashboard | Metabase | Looker Studio |
