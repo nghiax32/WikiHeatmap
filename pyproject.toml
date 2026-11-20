@@ -6,3 +6,8 @@ dependencies = [
     "boto3==1.43.118",
     "confluent-kafka==2.15.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pyspark==4.3.0",
+]
