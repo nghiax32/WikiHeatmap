@@ -37,14 +37,17 @@ RAW_SCHEMA = StructType([
 
 # Must match the Hadoop version bundled with PySpark (pyspark/jars/hadoop-client-*.jar).
 HADOOP_AWS = "org.apache.hadoop:hadoop-aws:3.5.0"
+# Must match the Spark and Scala versions of PySpark (pyspark/jars/spark-core_2.13-4.3.0.jar).
+SPARK_KAFKA = "org.apache.spark:spark-sql-kafka-0-10_2.13:4.3.0"
 
 
 def get_spark(app: str) -> SparkSession:
-    """Local SparkSession in UTC, able to read s3a:// paths on SeaweedFS."""
+    """Local SparkSession in UTC, able to read s3a:// paths on SeaweedFS
+    and to read from Kafka."""
     spark = (
         SparkSession.builder.appName(app)
         .config("spark.sql.session.timeZone", "UTC")
-        .config("spark.jars.packages", HADOOP_AWS)
+        .config("spark.jars.packages", f"{HADOOP_AWS},{SPARK_KAFKA}")
         .config("spark.hadoop.fs.s3a.endpoint",
                 os.environ.get("S3_ENDPOINT", "http://localhost:8333"))
         .config("spark.hadoop.fs.s3a.access.key",
@@ -97,20 +100,30 @@ def in_window(raw: DataFrame, start: str, end: str) -> DataFrame:
     return raw.filter(cond)
 
 
+def parse_kafka(kafka: DataFrame) -> DataFrame:
+    """Parse Kafka message values into the same columns as read_raw."""
+    return (
+        kafka
+        .select(F.from_json(F.col("value").cast("string"), RAW_SCHEMA).alias("e"))
+        .select("e.*")
+    )
+
+
+def edit_columns(filtered: DataFrame) -> DataFrame:
+    """Project to the edit columns (shared by batch and streaming)."""
+    return filtered.select(
+        F.col("meta.id").alias("event_id"),
+        F.timestamp_seconds("timestamp").alias("event_time"),
+        "wiki",
+        "title",
+        "user",
+    )
+
+
 def to_edits(filtered: DataFrame) -> DataFrame:
     """Project to the edit columns and drop resent events (same meta.id)."""
-    return (
-        filtered
-        .select(
-            F.col("meta.id").alias("event_id"),
-            F.timestamp_seconds("timestamp").alias("event_time"),
-            "wiki",
-            "title",
-            "user",
-        )
-        # dropDuplicates only accepts top-level columns, hence the select first.
-        .dropDuplicates(["event_id"])
-    )
+    # dropDuplicates only accepts top-level columns, hence the select first.
+    return edit_columns(filtered).dropDuplicates(["event_id"])
 
 
 def load_edits(spark: SparkSession, path: str,

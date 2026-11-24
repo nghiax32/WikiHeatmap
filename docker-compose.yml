@@ -33,6 +33,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    restart: always
 
   # One-shot: creates topics, then exits. Re-run by hand: docker compose run --rm kafka-init
   kafka-init:
@@ -64,6 +65,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: always
 
   # One-shot: creates buckets, then exits. Re-run by hand: docker compose run --rm seaweedfs-init
   seaweedfs-init:
