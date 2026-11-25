@@ -2,7 +2,7 @@
 
 **English** | [Tiếng Việt](#tiếng-việt)
 
-> 🚧 **Work in progress.** Implemented so far: ingestion from Wikimedia EventStreams into Kafka, a temporary raw archive on SeaweedFS, the last-hour ranking with Spark Structured Streaming written to PostgreSQL, the dbt star schema with daily, weekly and monthly rankings refreshed every day by Airflow, and a Metabase dashboard. Still planned: the raw-to-Parquet streaming query in the running stack.
+> 🚧 **Work in progress.** Implemented so far: ingestion from Wikimedia EventStreams into Kafka, both Spark Structured Streaming queries (the last-hour ranking written to PostgreSQL, and the raw archive as Parquet on SeaweedFS), the dbt star schema with daily, weekly and monthly rankings refreshed every day by Airflow, a Metabase dashboard, and a measured late-data experiment. Still planned: the final README with measured results.
 
 Real-time ranking of the Wikipedia pages with the most editors over the last hour, day, week and month, built with Kafka, Spark Structured Streaming, dbt and PostgreSQL.
 
@@ -42,6 +42,23 @@ flowchart TD
 - **Distinct counts do not add up:** someone who edits a page on Monday and again on Tuesday is one editor for the week, so weekly and monthly rankings are computed from the edit-level fact table, not by summing daily rankings.
 - **Two separate streaming queries**, each with its own checkpoint, so a failure in the aggregation job cannot cost the raw archive. The trade-off is that Kafka is read twice.
 - **Planned star schema:** `fact_edits`, `dim_wiki`, `dim_editor`, plus per-page aggregate tables for each day, week and month.
+
+## Late data, measured
+
+The last-hour ranking uses a 1-hour window sliding every 5 minutes, a 30-second trigger and a 10-minute watermark. To choose the watermark, two real outages were replayed from Kafka through the same aggregation, cut into the same 30-second micro-batches by arrival time, once per watermark (`analysis/watermark_experiment.py`):
+
+| Watermark | Edits dropped, producer off 10 min (24,553 edits) | Edits dropped, pipeline down 87 min (19,882 edits) | Peak state, 10 min off / 87 min down |
+|---|---|---|---|
+| 1 s | 2 | 4 | 70k / 97k rows |
+| 10 s | 1 | 3 | 70k / 97k rows |
+| 1 min | 0 | 0 | 71k / 98k rows |
+| 5 min | 0 | 0 | 80k / 103k rows |
+| 10 min | 0 | 0 | 91k / 109k rows |
+
+- **Resuming after an outage loses almost nothing.** The producer resumes from its last event id and Wikimedia replays the backlog in order: events are late against the clock, not against each other.
+- **Spark drops far less than a per-event estimate.** Measuring each edit's lateness on its own suggested that a 1-second watermark would drop about 20% of edits. Spark dropped 0.02% at most, because the watermark only moves between micro-batches: a late edit arriving in the same batch as newer ones is kept.
+- **A longer watermark costs state, not speed or freshness.** Going from 1 second to 10 minutes adds about 30% state rows in normal operation, with the same batch time. In update mode the ranking refreshes every trigger whatever the watermark. After a long outage, the catch-up batch sets the peak state, not the watermark.
+- **Kept: 10 minutes.** It drops nothing in either scenario, at a cost of 60–110 MB of state.
 
 ## Goals
 
@@ -86,7 +103,7 @@ The project uses only local services, so the whole stack starts with `docker com
 
 # Tiếng Việt
 
-> 🚧 **Đang phát triển.** Đã hiện thực: ingest từ Wikimedia EventStreams vào Kafka, raw archive tạm thời trên SeaweedFS, bảng xếp hạng 1 giờ bằng Spark Structured Streaming ghi vào PostgreSQL, star schema dbt với bảng xếp hạng ngày, tuần, tháng được Airflow cập nhật hằng ngày, và dashboard Metabase. Còn dự kiến: query streaming raw → Parquet chạy cùng hệ thống.
+> 🚧 **Đang phát triển.** Đã hiện thực: ingest từ Wikimedia EventStreams vào Kafka, cả hai query Spark Structured Streaming (bảng xếp hạng 1 giờ ghi vào PostgreSQL, và raw archive dạng Parquet trên SeaweedFS), star schema dbt với bảng xếp hạng ngày, tuần, tháng được Airflow cập nhật hằng ngày, dashboard Metabase, và thí nghiệm late data có số liệu. Còn dự kiến: README hoàn chỉnh kèm số liệu đo.
 
 Bảng xếp hạng real-time các trang Wikipedia có nhiều người chỉnh sửa nhất trong 1 giờ, ngày, tuần và tháng gần nhất, xây dựng bằng Kafka, Spark Structured Streaming, dbt và PostgreSQL.
 
@@ -126,6 +143,23 @@ flowchart TD
 - **Số editor khác nhau không cộng dồn được:** một người sửa trang vào thứ Hai rồi sửa tiếp vào thứ Ba chỉ là một editor của tuần, nên bảng tuần và tháng được tính lại từ fact table ở mức từng edit, không cộng từ bảng ngày.
 - **Hai streaming query riêng**, mỗi query có checkpoint riêng, để job aggregate lỗi không làm mất raw archive. Trade-off là Kafka bị đọc hai lần.
 - **Star schema dự kiến:** `fact_edits`, `dim_wiki`, `dim_editor`, cùng các bảng tổng hợp theo trang cho từng ngày, tuần, tháng.
+
+## Late data: số liệu đo được
+
+Bảng xếp hạng 1 giờ dùng window 1 giờ trượt mỗi 5 phút, trigger 30 giây và watermark 10 phút. Để chọn watermark, hai lần dừng thật được replay từ Kafka qua đúng phép tổng hợp đó, chia thành đúng các micro-batch 30 giây theo thời điểm đến, mỗi watermark một lần (`analysis/watermark_experiment.py`):
+
+| Watermark | Edit bị bỏ, tắt producer 10 phút (24.553 edit) | Edit bị bỏ, dừng pipeline 87 phút (19.882 edit) | State lớn nhất, tắt 10 phút / dừng 87 phút |
+|---|---|---|---|
+| 1 s | 2 | 4 | 70 nghìn / 97 nghìn dòng |
+| 10 s | 1 | 3 | 70 nghìn / 97 nghìn dòng |
+| 1 phút | 0 | 0 | 71 nghìn / 98 nghìn dòng |
+| 5 phút | 0 | 0 | 80 nghìn / 103 nghìn dòng |
+| 10 phút | 0 | 0 | 91 nghìn / 109 nghìn dòng |
+
+- **Resume sau sự cố gần như không mất gì.** Producer resume từ event id cuối, Wikimedia phát lại backlog theo đúng thứ tự: event trễ so với giờ thật nhưng không trễ so với nhau.
+- **Spark bỏ ít hơn nhiều so với ước lượng theo từng event.** Đo độ trễ của từng edit riêng lẻ thì watermark 1 giây tưởng như bỏ khoảng 20% edit. Spark chỉ bỏ nhiều nhất 0,02%, vì watermark chỉ tiến giữa các micro-batch: edit đến muộn nằm cùng batch với edit mới hơn vẫn được giữ.
+- **Watermark dài tốn state, không làm chậm hay làm cũ kết quả.** Từ 1 giây lên 10 phút, state tăng khoảng 30% số dòng khi chạy bình thường, thời gian mỗi batch không đổi. Ở update mode bảng xếp hạng cập nhật sau mỗi trigger, bất kể watermark. Sau một đợt dừng dài, batch lấy bù quyết định đỉnh state, không phải watermark.
+- **Giữ 10 phút.** Không bỏ edit nào ở cả hai kịch bản, đổi lại 60–110 MB state.
 
 ## Mục tiêu
 
