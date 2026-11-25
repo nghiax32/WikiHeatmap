@@ -4,6 +4,10 @@
 
 Real-time ranking of the Wikipedia pages with the most editors over the last hour, day, week and month, built with Kafka, Spark Structured Streaming, dbt and PostgreSQL.
 
+![Metabase dashboard: Wikipedia pages ranked by distinct editors on 2026-11-24, all language editions](docs/dashboard.png)
+
+*The Metabase dashboard (labels in Vietnamese): pages ranked by distinct editors for one day, all language editions. Filters choose the window (last hour, day, week, month), the period and the wiki.*
+
 ## Why
 
 Every edit to Wikipedia is published as a public event stream. Counting how many different people are editing a page shows what the world is paying attention to right now: breaking news, a new release, an election.
@@ -102,6 +106,10 @@ The project uses only local services, so the whole stack starts with `docker com
 # Tiếng Việt
 
 Bảng xếp hạng real-time các trang Wikipedia có nhiều người chỉnh sửa nhất trong 1 giờ, ngày, tuần và tháng gần nhất, xây dựng bằng Kafka, Spark Structured Streaming, dbt và PostgreSQL.
+
+![Dashboard Metabase: các trang Wikipedia xếp theo số editor khác nhau ngày 2026-11-24, mọi phiên bản ngôn ngữ](docs/dashboard.png)
+
+*Dashboard Metabase: các trang xếp theo số editor khác nhau trong một ngày, mọi phiên bản ngôn ngữ. Bộ lọc chọn window (1 giờ gần nhất, ngày, tuần, tháng), kỳ và wiki.*
 
 ## Vì sao
 
