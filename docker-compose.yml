@@ -1,9 +1,13 @@
+# Published ports listen on 127.0.0.1 only: the services use development
+# credentials. Reach them from another machine through SSH:
+#   ssh -N -L 3000:localhost:3000 -L 8081:localhost:8081 -L 5432:localhost:5432 \
+#       -L 8333:localhost:8333 -L 9092:localhost:9092 <server>
 services:
   kafka:
     image: apache/kafka:4.0.0
     container_name: wikiheatmap-kafka
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     environment:
       # One node is both broker and controller (KRaft, no ZooKeeper).
       KAFKA_NODE_ID: 1
@@ -53,7 +57,7 @@ services:
     container_name: wikiheatmap-seaweedfs
     command: server -dir=/data -ip.bind=0.0.0.0 -s3 -master.volumeSizeLimitMB=1024
     ports:
-      - "8333:8333"  # S3 API
+      - "127.0.0.1:8333:8333"  # S3 API
     environment:
       # Local development credentials; override in .env.
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-wikiheatmap}
@@ -84,7 +88,7 @@ services:
     image: postgres:16.15
     container_name: wikiheatmap-postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       # Local development credentials; override in .env.
       POSTGRES_DB: wikiheatmap
@@ -124,7 +128,7 @@ services:
     container_name: wikiheatmap-airflow
     command: ["standalone"]
     ports:
-      - "${AIRFLOW_PORT:-8081}:8080"
+      - "127.0.0.1:${AIRFLOW_PORT:-8081}:8080"
     environment:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER:-wikiheatmap}:${PG_PASSWORD:-wikiheatmap-secret}@postgres:5432/airflow
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -205,13 +209,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Streaming query 2: raw archive, Kafka -> Parquet on SeaweedFS
+  # (s3a://wikiheatmap/raw-parquet/recentchange/), exactly-once file sink.
+  # Own process and checkpoint, so a failure of the aggregate cannot cost the archive.
+  # The first start reads Kafka from the earliest offset (up to 3 days back).
+  # The trigger is every 5 minutes even when behind, so a catch-up moves at most
+  # --max-offsets per 5 minutes: 5M (about 1 minute of work) instead of the
+  # default 500k; a normal 5 minutes holds ~40k messages.
+  stream-raw:
+    image: wikiheatmap-spark
+    container_name: wikiheatmap-stream-raw
+    command: ["python", "stream_raw.py", "--checkpoint", "/state/checkpoints/raw_parquet",
+              "--starting-offsets", "earliest", "--max-offsets", "5000000"]
+    environment:
+      SPARK_DRIVER_MEMORY: 2g
+      KAFKA_BOOTSTRAP: kafka:19092
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-wikiheatmap}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-wikiheatmap-secret}
+    volumes:
+      - spark-state:/state
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      seaweedfs-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   # Dashboard on http://localhost:3000. Its own settings (users, questions,
   # dashboards) live in an H2 file in the volume; scripts/setup_metabase.py creates them.
   metabase:
     image: metabase/metabase:v0.65.4.1
     container_name: wikiheatmap-metabase
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       MB_DB_FILE: /metabase-data/metabase.db
       MB_ANON_TRACKING_ENABLED: "false"
@@ -245,8 +276,11 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # Kafka -> hourly JSONL.gz on SeaweedFS. Temporary until the Spark raw query (Step 7).
+  # Kafka -> hourly JSONL.gz on SeaweedFS. Replaced by stream-raw (stopped
+  # 2026-11-25, archive converted by analysis/convert_archive.py); profile
+  # "archiver" keeps it out of `up`: docker compose --profile archiver up -d archiver
   archiver:
+    profiles: ["archiver"]
     build: .
     image: wikiheatmap-app
     container_name: wikiheatmap-archiver

@@ -48,6 +48,8 @@ def get_spark(app: str) -> SparkSession:
     spark = (
         SparkSession.builder.appName(app)
         .config("spark.sql.session.timeZone", "UTC")
+        # Local mode: the driver JVM is also the executor. Read at JVM start only.
+        .config("spark.driver.memory", os.environ.get("SPARK_DRIVER_MEMORY", "1g"))
         .config("spark.jars.packages", f"{HADOOP_AWS},{SPARK_KAFKA},{POSTGRES_JDBC}")
         .config("spark.hadoop.fs.s3a.endpoint",
                 os.environ.get("S3_ENDPOINT", "http://localhost:8333"))
@@ -70,6 +72,22 @@ def get_spark(app: str) -> SparkSession:
 
 def read_raw(spark: SparkSession, path: str) -> DataFrame:
     return spark.read.schema(RAW_SCHEMA).json(path)
+
+
+def read_raw_parquet(spark: SparkSession, paths: list[str]) -> DataFrame:
+    """Read the Parquet raw archive (stream_raw.py, convert_archive.py) into
+    the same columns as read_raw, plus the date= partition column.
+
+    One read per path, then union: given several paths at once, Spark does not
+    use a streaming sink's _spark_metadata log and would also read files of
+    uncommitted batches.
+    """
+    parts = [spark.read.parquet(p).select("value", "date") for p in paths]
+    raw = parts[0]
+    for p in parts[1:]:
+        raw = raw.unionByName(p)
+    return (raw.select(F.from_json("value", RAW_SCHEMA).alias("e"), "date")
+            .select("e.*", "date"))
 
 
 def filter_edits(raw: DataFrame) -> DataFrame:

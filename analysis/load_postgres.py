@@ -13,16 +13,21 @@ range instead of adding to it, and a failed run changes nothing.
 Event time travels as Unix seconds and becomes timestamptz in PostgreSQL:
 the JDBC driver would interpret Spark timestamps in the JVM's time zone.
 
-Run: uv run python analysis/load_postgres.py <path> <start> <end>   (UTC)
-     e.g. s3a://wikiheatmap/raw/recentchange/ "2026-11-12 00:00:00" "2026-11-13 00:00:00"
+Reads the Parquet raw archive by default: the streaming sink (stream_raw.py)
+and the converted JSONL archive (convert_archive.py), which overlap by a few
+days; the overlap is the same events twice and dbt dedupes them.
+--format json reads the old JSONL.gz archive instead.
+
+Run: uv run python analysis/load_postgres.py <start> <end> [--format json] [--paths p1,p2]   (UTC)
+     e.g. "2026-11-12 00:00:00" "2026-11-13 00:00:00"
 """
-import sys
+import argparse
 import time
 
 import psycopg2
 from pyspark.sql import functions as F
 
-from load_edits import filter_edits, get_spark, in_window, read_raw
+from load_edits import filter_edits, get_spark, in_window, read_raw, read_raw_parquet
 from warehouse import PG, jdbc_append
 
 DDL = """
@@ -60,14 +65,27 @@ SELECT event_id, to_timestamp(event_ts), type, wiki, server_name, title, user_na
 TRUNCATE raw.edits_load;
 """
 
+PARQUET_PATHS = ["s3a://wikiheatmap/raw-parquet/recentchange/",
+                 "s3a://wikiheatmap/raw-parquet/recentchange-jsonl/"]
+JSON_PATHS = ["s3a://wikiheatmap/raw/recentchange/"]
+
 if __name__ == "__main__":
-    path, start, end = sys.argv[1], sys.argv[2], sys.argv[3]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("start")
+    ap.add_argument("end")
+    ap.add_argument("--format", choices=["parquet", "json"], default="parquet")
+    ap.add_argument("--paths", help="comma-separated, overrides the default paths of --format")
+    args = ap.parse_args()
+    start, end = args.start, args.end
+    paths = args.paths.split(",") if args.paths else (
+        PARQUET_PATHS if args.format == "parquet" else JSON_PATHS)
 
     with psycopg2.connect(**PG) as conn, conn.cursor() as cur:
         cur.execute(DDL)
 
     spark = get_spark("load-postgres")
-    rows = filter_edits(in_window(read_raw(spark, path), start, end)).select(
+    raw = read_raw_parquet(spark, paths) if args.format == "parquet" else read_raw(spark, paths)
+    rows = filter_edits(in_window(raw, start, end)).select(
         F.col("meta.id").alias("event_id"),
         F.col("timestamp").alias("event_ts"),
         "type", "wiki", "server_name", "title",

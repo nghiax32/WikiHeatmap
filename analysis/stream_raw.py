@@ -41,6 +41,9 @@ if __name__ == "__main__":
         .option("subscribe", os.environ.get("KAFKA_TOPIC", "wikimedia.recentchange.raw"))
         .option("startingOffsets", args.starting_offsets)
         .option("maxOffsetsPerTrigger", args.max_offsets)
+        # Split each partition's offset range into smaller tasks: one task per
+        # Kafka partition ran out of heap sorting 1.7M messages by date/hour.
+        .option("minPartitions", 24)
         .load()
     )
     raw = kafka.select(

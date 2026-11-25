@@ -26,7 +26,6 @@ from airflow.sdk import DAG
 from airflow.timetables.trigger import CronTriggerTimetable
 
 NETWORK = os.environ.get("WIKIHEATMAP_NETWORK", "wikiheatmap_default")
-ARCHIVE = "s3a://wikiheatmap/raw/recentchange/"
 JOB_ENV = {
     "PG_HOST": "postgres",
     "PG_USER": os.environ.get("PG_USER", "wikiheatmap"),
@@ -59,7 +58,8 @@ with DAG(
         task_id="load_edits",
         image="wikiheatmap-spark",
         # [D-2, D): yesterday and the day before.
-        command=["python", "load_postgres.py", ARCHIVE,
+        # Reads the Parquet raw archive (default paths of load_postgres.py).
+        command=["python", "load_postgres.py",
                  "{{ macros.ds_add(ds, -2) }} 00:00:00", "{{ ds }} 00:00:00"],
         **DOCKER,
     )
