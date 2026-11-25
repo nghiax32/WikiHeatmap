@@ -86,7 +86,7 @@ The last-hour ranking uses a 1-hour window sliding every 5 minutes, a 30-second 
 
 ## Design principles
 
-- **Count, don't interpret.** The dashboard shows how many people edit a page, not why.
+- **Count, don't interpret.** The dashboard shows how many people edit a page, not why. For example, the English article "Mass media" tops the ranking for 2026-11-24 (screenshot above) with 66 editors, after at most two a day before 23 November. The reason is not news: it had just been chosen as Wikipedia's [Today's Article for Improvement](https://en.wikipedia.org/wiki/Wikipedia:Today%27s_articles_for_improvement), which invites anyone to improve it. Finding that out took the page history, not the counts.
 - **Pages, not people.** Editor names are used only to count distinct editors per page. Names are kept as published by Wikimedia (anonymous edits appear as temporary accounts, not IP addresses), but the dashboard shows no editor names, rankings or profiles.
 
 ## Tech stack
@@ -189,7 +189,7 @@ Bảng xếp hạng 1 giờ dùng window 1 giờ trượt mỗi 5 phút, trigger
 
 ## Nguyên tắc thiết kế
 
-- **Chỉ đếm, không diễn giải.** Dashboard cho biết bao nhiêu người sửa một trang, không giải thích vì sao.
+- **Chỉ đếm, không diễn giải.** Dashboard cho biết bao nhiêu người sửa một trang, không giải thích vì sao. Ví dụ, bài tiếng Anh "Mass media" đứng đầu bảng xếp hạng ngày 2026-11-24 (ảnh ở trên) với 66 editor, trong khi trước ngày 23/11 mỗi ngày chỉ có nhiều nhất hai người sửa. Lý do không phải tin tức: bài vừa được chọn làm [Today's Article for Improvement](https://en.wikipedia.org/wiki/Wikipedia:Today%27s_articles_for_improvement) của Wikipedia, chương trình mời mọi người cùng cải thiện một bài. Muốn biết điều đó phải xem lịch sử sửa của trang, con số đếm không nói được.
 - **Trang, không phải con người.** Tên editor chỉ dùng để đếm số editor khác nhau của mỗi trang. Tên được giữ nguyên như Wikimedia công bố (edit ẩn danh hiện dưới dạng temporary account, không phải địa chỉ IP), nhưng dashboard không hiển thị tên, xếp hạng hay hồ sơ editor.
 
 ## Công nghệ
