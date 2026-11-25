@@ -2,8 +2,6 @@
 
 **English** | [Tiếng Việt](#tiếng-việt)
 
-> 🚧 **Work in progress.** Implemented so far: ingestion from Wikimedia EventStreams into Kafka, both Spark Structured Streaming queries (the last-hour ranking written to PostgreSQL, and the raw archive as Parquet on SeaweedFS), the dbt star schema with daily, weekly and monthly rankings refreshed every day by Airflow, a Metabase dashboard, and a measured late-data experiment. Still planned: the final README with measured results.
-
 Real-time ranking of the Wikipedia pages with the most editors over the last hour, day, week and month, built with Kafka, Spark Structured Streaming, dbt and PostgreSQL.
 
 ## Why
@@ -22,7 +20,7 @@ Pages ranked by the **number of distinct editors**, highest first, for each lang
 - **Distinct editors, not edits.** One person saving a page many times in a row is not a sign of interest; many different people editing it is. The number of edits is shown as a secondary column.
 - **Human edits to articles only.** Bots, Wikidata, Commons and non-article namespaces are filtered out.
 
-## Planned architecture
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -41,7 +39,7 @@ flowchart TD
 - **Streaming for the short window, batch for the long ones:** a one-hour window needs low latency and event-time handling; day, week and month windows tolerate a daily refresh and would be costly to keep in streaming state. Both use the same metric definition (filters, deduplication, distinct editors).
 - **Distinct counts do not add up:** someone who edits a page on Monday and again on Tuesday is one editor for the week, so weekly and monthly rankings are computed from the edit-level fact table, not by summing daily rankings.
 - **Two separate streaming queries**, each with its own checkpoint, so a failure in the aggregation job cannot cost the raw archive. The trade-off is that Kafka is read twice.
-- **Planned star schema:** `fact_edits`, `dim_wiki`, `dim_editor`, plus per-page aggregate tables for each day, week and month.
+- **Star schema:** `fact_edits`, `dim_wiki`, `dim_editor`, plus per-page aggregate tables for each day, week and month.
 
 ## Late data, measured
 
@@ -103,8 +101,6 @@ The project uses only local services, so the whole stack starts with `docker com
 
 # Tiếng Việt
 
-> 🚧 **Đang phát triển.** Đã hiện thực: ingest từ Wikimedia EventStreams vào Kafka, cả hai query Spark Structured Streaming (bảng xếp hạng 1 giờ ghi vào PostgreSQL, và raw archive dạng Parquet trên SeaweedFS), star schema dbt với bảng xếp hạng ngày, tuần, tháng được Airflow cập nhật hằng ngày, dashboard Metabase, và thí nghiệm late data có số liệu. Còn dự kiến: README hoàn chỉnh kèm số liệu đo.
-
 Bảng xếp hạng real-time các trang Wikipedia có nhiều người chỉnh sửa nhất trong 1 giờ, ngày, tuần và tháng gần nhất, xây dựng bằng Kafka, Spark Structured Streaming, dbt và PostgreSQL.
 
 ## Vì sao
@@ -123,7 +119,7 @@ Các trang được xếp theo **số editor khác nhau**, giảm dần, cho t�
 - **Đếm editor khác nhau, không đếm edit.** Một người lưu một trang nhiều lần liên tiếp không phải dấu hiệu được quan tâm; nhiều người khác nhau cùng sửa thì có. Số edit được hiển thị như cột phụ.
 - **Chỉ tính edit của người trên bài viết.** Bot, Wikidata, Commons và các namespace không phải bài viết đều bị lọc ra.
 
-## Kiến trúc dự kiến
+## Kiến trúc
 
 ```mermaid
 flowchart TD
@@ -142,7 +138,7 @@ flowchart TD
 - **Streaming cho window ngắn, batch cho window dài:** window 1 giờ cần độ trễ thấp và xử lý event time; window ngày, tuần, tháng chấp nhận cập nhật hằng ngày, và giữ chúng trong state của streaming sẽ rất tốn bộ nhớ. Cả hai dùng chung một định nghĩa metric (quy tắc lọc, dedupe, đếm editor khác nhau).
 - **Số editor khác nhau không cộng dồn được:** một người sửa trang vào thứ Hai rồi sửa tiếp vào thứ Ba chỉ là một editor của tuần, nên bảng tuần và tháng được tính lại từ fact table ở mức từng edit, không cộng từ bảng ngày.
 - **Hai streaming query riêng**, mỗi query có checkpoint riêng, để job aggregate lỗi không làm mất raw archive. Trade-off là Kafka bị đọc hai lần.
-- **Star schema dự kiến:** `fact_edits`, `dim_wiki`, `dim_editor`, cùng các bảng tổng hợp theo trang cho từng ngày, tuần, tháng.
+- **Star schema:** `fact_edits`, `dim_wiki`, `dim_editor`, cùng các bảng tổng hợp theo trang cho từng ngày, tuần, tháng.
 
 ## Late data: số liệu đo được
 
