@@ -8,6 +8,17 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
+# Spark jobs (analysis/): batch, streaming, loading PostgreSQL. Image wikiheatmap-spark.
+spark = [
+    "psycopg2-binary==2.9.13",
     "pyspark==4.3.0",
+]
+dbt = [
+    "dbt-core==1.12.6",
+    "dbt-postgres==1.11.0",
+]
+# Everything, for development on the host (uv sync installs dev by default).
+dev = [
+    { include-group = "spark" },
+    { include-group = "dbt" },
 ]

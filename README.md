@@ -2,7 +2,7 @@
 
 **English** | [Tiếng Việt](#tiếng-việt)
 
-> 🚧 **Work in progress.** Implemented so far: ingestion from Wikimedia EventStreams into Kafka, and a temporary raw archive on SeaweedFS. Everything else below is planned.
+> 🚧 **Work in progress.** Implemented so far: ingestion from Wikimedia EventStreams into Kafka, a temporary raw archive on SeaweedFS, the last-hour ranking with Spark Structured Streaming written to PostgreSQL, the dbt star schema with daily, weekly and monthly rankings, and a Metabase dashboard. Still planned: the daily Airflow schedule, and the raw-to-Parquet streaming query in the running stack.
 
 Real-time ranking of the Wikipedia pages with the most editors over the last hour, day, week and month, built with Kafka, Spark Structured Streaming, dbt and PostgreSQL.
 
@@ -86,7 +86,7 @@ The project uses only local services, so the whole stack starts with `docker com
 
 # Tiếng Việt
 
-> 🚧 **Đang phát triển.** Đã hiện thực: ingest từ Wikimedia EventStreams vào Kafka, và raw archive tạm thời trên SeaweedFS. Mọi phần khác bên dưới là thiết kế dự kiến.
+> 🚧 **Đang phát triển.** Đã hiện thực: ingest từ Wikimedia EventStreams vào Kafka, raw archive tạm thời trên SeaweedFS, bảng xếp hạng 1 giờ bằng Spark Structured Streaming ghi vào PostgreSQL, star schema dbt với bảng xếp hạng ngày, tuần, tháng, và dashboard Metabase. Còn dự kiến: lịch chạy hằng ngày bằng Airflow, và query streaming raw → Parquet chạy cùng hệ thống.
 
 Bảng xếp hạng real-time các trang Wikipedia có nhiều người chỉnh sửa nhất trong 1 giờ, ngày, tuần và tháng gần nhất, xây dựng bằng Kafka, Spark Structured Streaming, dbt và PostgreSQL.
 

@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Loaded by analysis/load_postgres.py (filter rules applied, duplicates kept).
+    tables:
+      - name: edits
+        columns:
+          - name: event_id
+            data_tests: [not_null]
+          - name: event_time
+            data_tests: [not_null]
+
+  - name: realtime
+    description: Written by the streaming query (analysis/stream_top_pages.py), upsert per micro-batch.
+    tables:
+      - name: page_editors_1h
+        description: Distinct editors per page per sliding 1-hour window (slide in var slide_minutes).

@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: fact_edits
+    description: One row per human Wikipedia article edit (filters in load_postgres.py, dedupe here).
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: event_time
+        data_tests: [not_null]
+      - name: event_date
+        data_tests: [not_null]
+      - name: type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["edit", "new"]
+      - name: wiki
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_wiki')
+                field: wiki
+      - name: title
+        data_tests: [not_null]
+      - name: editor_id
+        description: Null for the few edits without a user.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_editor')
+                field: editor_id
+
+  - name: dim_wiki
+    columns:
+      - name: wiki
+        data_tests: [unique, not_null]
+      - name: server_name
+        data_tests: [unique, not_null]
+
+  - name: dim_editor
+    description: Used only to count distinct editors; the dashboard never shows editors.
+    columns:
+      - name: editor_id
+        data_tests: [unique, not_null]
+      - name: account_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["named", "temporary"]
+
+  - name: agg_page_day
+    description: Distinct editors and edits per page per UTC calendar day.
+    data_tests: &agg_tests
+      - unique_combination:
+          arguments:
+            columns: ["period_start", "wiki", "title"]
+      - unique_combination:
+          arguments:
+            columns: ["period_start", "wiki", "rank_in_wiki"]
+  - name: agg_page_week
+    description: Same per calendar week (Monday to Monday, UTC).
+    data_tests: *agg_tests
+  - name: agg_page_month
+    description: Same per calendar month (UTC).
+    data_tests: *agg_tests

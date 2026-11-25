@@ -39,15 +39,16 @@ RAW_SCHEMA = StructType([
 HADOOP_AWS = "org.apache.hadoop:hadoop-aws:3.5.0"
 # Must match the Spark and Scala versions of PySpark (pyspark/jars/spark-core_2.13-4.3.0.jar).
 SPARK_KAFKA = "org.apache.spark:spark-sql-kafka-0-10_2.13:4.3.0"
+POSTGRES_JDBC = "org.postgresql:postgresql:42.7.7"
 
 
 def get_spark(app: str) -> SparkSession:
-    """Local SparkSession in UTC, able to read s3a:// paths on SeaweedFS
-    and to read from Kafka."""
+    """Local SparkSession in UTC, able to read s3a:// paths on SeaweedFS,
+    to read from Kafka and to write to PostgreSQL."""
     spark = (
         SparkSession.builder.appName(app)
         .config("spark.sql.session.timeZone", "UTC")
-        .config("spark.jars.packages", f"{HADOOP_AWS},{SPARK_KAFKA}")
+        .config("spark.jars.packages", f"{HADOOP_AWS},{SPARK_KAFKA},{POSTGRES_JDBC}")
         .config("spark.hadoop.fs.s3a.endpoint",
                 os.environ.get("S3_ENDPOINT", "http://localhost:8333"))
         .config("spark.hadoop.fs.s3a.access.key",

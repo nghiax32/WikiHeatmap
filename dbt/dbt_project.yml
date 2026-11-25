@@ -1,0 +1,18 @@
+name: wikiheatmap
+version: "1.0.0"
+profile: wikiheatmap
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+vars:
+  # Must match --slide of analysis/stream_top_pages.py.
+  slide_minutes: 5
+
+models:
+  wikiheatmap:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

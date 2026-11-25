@@ -1,0 +1,13 @@
+# Local warehouse from docker-compose.yml; credentials from the environment (.env).
+wikiheatmap:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('PG_HOST', 'localhost') }}"
+      port: "{{ env_var('PG_PORT', '5432') | int }}"
+      dbname: "{{ env_var('PG_DB', 'wikiheatmap') }}"
+      user: "{{ env_var('PG_USER', 'wikiheatmap') }}"
+      password: "{{ env_var('PG_PASSWORD', 'wikiheatmap-secret') }}"
+      schema: analytics
+      threads: 4
