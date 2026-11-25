@@ -99,6 +99,83 @@ services:
       retries: 10
     restart: always
 
+  # One-shot: creates the airflow database, then exits.
+  postgres-init:
+    image: postgres:16.15
+    container_name: wikiheatmap-postgres-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${PG_USER:-wikiheatmap}
+      PGPASSWORD: ${PG_PASSWORD:-wikiheatmap-secret}
+      PGDATABASE: wikiheatmap
+    volumes:
+      - ./scripts/create_databases.sh:/create_databases.sh:ro
+    entrypoint: ["/bin/sh", "/create_databases.sh"]
+    restart: "no"
+
+  # Scheduler, API server and DAG processor in one container (single node).
+  # UI on http://localhost:8081 (8080 is often taken; AIRFLOW_PORT), no login (local only). The DAG starts its
+  # tasks as containers through the Docker socket (DockerOperator).
+  airflow:
+    image: apache/airflow:3.3.2-python3.12
+    container_name: wikiheatmap-airflow
+    command: ["standalone"]
+    ports:
+      - "${AIRFLOW_PORT:-8081}:8080"
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER:-wikiheatmap}:${PG_PASSWORD:-wikiheatmap-secret}@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+      # Passed on to the job containers by the DAG.
+      PG_USER: ${PG_USER:-wikiheatmap}
+      PG_PASSWORD: ${PG_PASSWORD:-wikiheatmap-secret}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-wikiheatmap}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-wikiheatmap-secret}
+    group_add:
+      # Group owning /var/run/docker.sock on the host (stat -c %g /var/run/docker.sock).
+      - "${DOCKER_GID:-984}"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Job images run by the Airflow DAG, also runnable by hand, e.g.
+  #   docker compose run --rm load-edits python load_postgres.py <path> <start> <end>
+  #   docker compose run --rm dbt build
+  # Profile "jobs": built by `docker compose --profile jobs build`, never started by `up`.
+  load-edits:
+    profiles: ["jobs"]
+    image: wikiheatmap-spark
+    build:
+      context: .
+      dockerfile: spark.Dockerfile
+    environment:
+      PG_HOST: postgres
+      PG_USER: ${PG_USER:-wikiheatmap}
+      PG_PASSWORD: ${PG_PASSWORD:-wikiheatmap-secret}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-wikiheatmap}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-wikiheatmap-secret}
+
+  dbt:
+    profiles: ["jobs"]
+    image: wikiheatmap-dbt
+    build:
+      context: .
+      dockerfile: dbt.Dockerfile
+    environment:
+      PG_HOST: postgres
+      PG_USER: ${PG_USER:-wikiheatmap}
+      PG_PASSWORD: ${PG_PASSWORD:-wikiheatmap-secret}
+
   # Streaming query 1: live 1-hour ranking, Kafka -> realtime.page_editors_1h.
   # On its first start it reads Kafka from 65 minutes back, so the window is
   # full at once; afterwards the checkpoint (volume) decides where to resume.
