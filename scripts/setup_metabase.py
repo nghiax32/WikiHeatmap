@@ -156,6 +156,9 @@ from analytics.fact_edits
 """
 
 
+SHORT_DATE = {"date_style": "YYYY/M/D", "time_style": "HH:mm"}
+
+
 def upsert_card(db_id, coll_id, existing, name, sql, tag_names, display, viz=None) -> int:
     body = {
         "name": name,
@@ -182,7 +185,12 @@ def main():
 
     ranking = upsert_card(db_id, coll_id, cards, "Xếp hạng trang theo số editor", RANKING_SQL,
                           ["window", "date", "wiki"], "table",
-                          {"column_settings": {'["name","Link"]': {"view_as": "link"}}})
+                          # Short link text and dates: the full URL and long dates
+                          # pushed the last columns off screen.
+                          {"column_settings": {'["name","Link"]': {"view_as": "link",
+                                                                   "link_text": "Mở"},
+                                               '["name","Từ"]': SHORT_DATE,
+                                               '["name","Đến"]': SHORT_DATE}})
     chart = upsert_card(db_id, coll_id, cards, "Top 15 trang", TOP_CHART_SQL,
                         ["window", "date", "wiki"], "row",
                         {"graph.dimensions": ["Trang"], "graph.metrics": ["Số editor"]})
@@ -218,11 +226,13 @@ def main():
                        "theo window 1 giờ gần nhất, ngày, tuần hoặc tháng. Chỉ đếm, không diễn giải.",
         "parameters": params,
         "dashcards": [
-            {"id": -1, "card_id": fresh, "row": 0, "col": 0, "size_x": 24, "size_y": 3,
+            {"id": -1, "card_id": fresh, "row": 0, "col": 0, "size_x": 24, "size_y": 4,
              "parameter_mappings": []},
-            {"id": -2, "card_id": chart, "row": 3, "col": 0, "size_x": 24, "size_y": 8,
+            # Tall enough for 15 bars: a row chart that does not fit its card
+            # groups the last bars into one "Other" bar with their editors summed.
+            {"id": -2, "card_id": chart, "row": 4, "col": 0, "size_x": 24, "size_y": 11,
              "parameter_mappings": mappings(chart, ["window", "date", "wiki"])},
-            {"id": -3, "card_id": ranking, "row": 11, "col": 0, "size_x": 24, "size_y": 12,
+            {"id": -3, "card_id": ranking, "row": 15, "col": 0, "size_x": 24, "size_y": 12,
              "parameter_mappings": mappings(ranking, ["window", "date", "wiki"])},
         ],
     })
